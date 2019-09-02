@@ -17,16 +17,20 @@ const {
 } = require('./lib/chunk-tools');
 const { copyRangeSync } = require('./lib/file-tools.js');
 
+const package = require('./package.json');
 const program = require('commander');
  
 program
-  .option('-a, --he-aac', 'Treat the input audio as HE-AAC')
-  .option('-d, --debug', 'Enable the creation of debug output files');
+  .version(package.version)
+  .name('remoover')
+  .usage("[options] <source file> [output file]")
+  .option('-a, --he-aac', 'treat the source\'s audio as HE-AAC')
+  .option('-d, --debug', 'enable the creation of debugging output files');
  
 program.parse(process.argv);
 
 if (!program.args[0] || !fs.existsSync(path.resolve(program.args[0]))) {
-  console.error('You must supply a path to an existing as the first parameter.');
+  console.error('You must supply a path to an existing video as the first parameter.');
   process.exit(2);
 }
 
