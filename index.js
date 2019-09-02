@@ -1,6 +1,6 @@
+#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-
 const mp4Generator = require('./contrib/mp4-generator.js');
 const { mdatMapper, mdatMapToSamples } = require('./lib/mdat-tools');
 const {
@@ -143,6 +143,9 @@ const shiftChunkOffsets = (mdatOffsetShift, chunks) => {
 
 console.time('Completed reconstructing mp4 moov');
 
+// Open file for writing...
+const outFd = fs.openSync(outFilename, 'w');
+
 const [videoTrack, audioTrack, chunksDurationsSplit, mdatLocations] = constructChunkList(inFd, program.heAac);
 
 console.time('Generating ftyp');
@@ -153,7 +156,6 @@ debug(ftyp, 'out_ftyp.bin', true);
 
 console.time('Copying Mdat(s)');
 
-const outFd = fs.openSync(outFilename, 'w');
 let outOffset = 0;
 
 // Write FTYP
@@ -168,9 +170,6 @@ mdatLocations.forEach(e => {
   outOffset += copyRangeSync(inFd, outFd, e.offset + 4, e.length - 4, outOffset);
 });
 
-// Copy file
-//fs.copyFileSync(inFilename, outFilename, fs.constants.COPYFILE_EXCL);
-
 console.timeEnd('Copying Mdat(s)');
 
 // Move all chunks and samples based on the new mdat locations
@@ -183,24 +182,11 @@ const tracks = constructTracks(videoTrack, audioTrack, chunksDurationsSplit);
 
 console.time('Generating moov');
 const moov = mp4Generator.moov(tracks);
-console.timeEnd('Generating moov');
 
 debug(moov, 'out_moov.bin', true);
 
-/*console.time('Patching mp4');
-// Fix up mdat length(s)
-mdatLocations.forEach(e => {
-  const mdatLength = Buffer.alloc(4);
-  mdatLength.writeUInt32BE(e.length, 0);
-  fs.writeSync(outFd, mdatLength, 0, 4, e.offset);
-});*/
-
-// Append MOOV atom
-//fs.writeSync(outFilename, moov);
-
 // Write MOOV
 outOffset += fs.writeSync(outFd, moov, 0, moov.length, outOffset);
-
-//console.timeEnd('Patching mp4');
+console.timeEnd('Generating moov');
 
 console.timeEnd('Completed reconstructing mp4 moov');
