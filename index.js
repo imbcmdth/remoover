@@ -14,6 +14,7 @@ const {
   chunksToSTSS,
   chunksToDuration,
   maxChunkOffset,
+  shiftChunkOffsets,
 } = require('./lib/chunk-tools');
 const { copyRangeSync } = require('./lib/file-tools.js');
 
@@ -130,15 +131,6 @@ const constructTracks = (videoTrack, audioTrack, chunksDurationsSplit) => {
   debug(audioTrack, 'out_mp4a.json');
 
   return [videoTrack, audioTrack];
-};
-
-const shiftChunkOffsets = (mdatOffsetShift, chunks) => {
-  chunks.forEach((e) => {
-    e.samples.forEach((es) => {
-      es.offset += mdatOffsetShift[es.mdatIndex];
-    });
-    e.offset += mdatOffsetShift[e.mdatIndex];
-  });
 };
 
 console.time('Completed reconstructing mp4 moov');
