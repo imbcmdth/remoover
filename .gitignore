@@ -1,0 +1,6 @@
+node_modules/
+examples/
+*.part
+*.mp4
+out*.json
+out*.bin
