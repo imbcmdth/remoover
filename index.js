@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const { performance } = require('perf_hooks');
+
 const mp4Generator = require('./contrib/mp4-generator.js');
 const { mdatMapper, mdatMapToSamples } = require('./lib/mdat-tools');
 const {
@@ -17,6 +19,13 @@ const {
   shiftChunkOffsets,
 } = require('./lib/chunk-tools');
 const { copyRangeSync } = require('./lib/file-tools.js');
+const {
+  debug,
+  time,
+  prettyInt,
+  prettyFloat,
+  prettyBytes,
+} = require('./lib/formatting-tools.js');
 
 const package = require('./package.json');
 const program = require('commander');
@@ -29,6 +38,7 @@ program
   .option('-d, --debug', 'enable the creation of debugging output files');
  
 program.parse(process.argv);
+global.DEBUG_LOGGING = program.debug;
 
 if (!program.args[0] || !fs.existsSync(path.resolve(program.args[0]))) {
   console.error('You must supply a path to an existing video as the first parameter.');
@@ -55,15 +65,6 @@ if (program.args[1]) {
   outFilename = generateOutputFilename(inFilename);
 }
 
-const debug = (obj, name = 'out.json', raw = false) => program.debug && fs.writeFileSync(name, raw ? obj : JSON.stringify(obj, null, '  '));
-
-const time = (str, fn) => {
-  console.time(str);
-  const retVal = fn();
-  console.timeEnd(str);
-  return retVal;
-};
-
 // Scan file, gathering MDAT and sample info
 // Build chunk-lists from samples
 // Construct an moov
@@ -74,13 +75,14 @@ const time = (str, fn) => {
 // Append the new MOOV
 
 const constructChunkList = (inFd, useHEAAC) => {
-  const [mdatMap, mdatLocations, videoTrack, audioTrack] = time('Mdat mapping', () => mdatMapper(inFd, useHEAAC));
+  const [mdatMap, mdatLocations, videoTrack, audioTrack] = time('MDAT mapping', () => mdatMapper(inFd, useHEAAC));
 
-  console.log('Total of', mdatLocations.length, 'mdats found.');
-  console.log('Mdat start(s) and end(s):', mdatLocations.map(e => [e.offset, e.offset + e.length]));
+  console.log('MDATs found:', prettyInt(mdatLocations.length));
+//  console.log('MDAT start(s) and end(s):');
+//  mdatLocations.forEach(e => console.log(`  ${prettyInt(e.offset)} -> ${prettyInt(e.offset + e.length)}`));
 
   const samples = time('Building samples', () => mdatMapToSamples(mdatMap));
-  console.log('Samples found:', samples.length);
+  console.log('Samples found:', prettyInt(samples.length));
 
   const [
     chunks,
@@ -148,7 +150,7 @@ const constructTracks = (videoTrack, audioTrack, chunksDurationsSplit) => {
   return [videoTrack, audioTrack];
 };
 
-time('Completed reconstructing mp4 moov', () => {
+time('\nTotal time to reconstruct MP4', () => {
   // Open file for writing...
   const outFd = fs.openSync(outFilename, 'w');
 
@@ -159,17 +161,28 @@ time('Completed reconstructing mp4 moov', () => {
   debug(ftyp, 'out_ftyp.bin', true);
 
   let outOffset = 0;
-  time('Copying Mdat(s)', () => {
+  time('Copying MDAT(s)', () => {
     // Write FTYP
     outOffset += fs.writeSync(outFd, ftyp, 0, ftyp.length, outOffset);
 
     // Copy each MDAT
-    mdatLocations.forEach(e => {
+    mdatLocations.forEach((e, i) => {
+      const startTime = performance.now();
+      const logString = `Copying MDAT #${i+1}: ${prettyBytes(e.length)}...`;
+      process.stdout.write(logString);
+
+      // Write MDAT length
       const mdatLength = Buffer.alloc(4);
       mdatLength.writeUInt32BE(e.length, 0);
       e.newOffset = outOffset;
       outOffset += fs.writeSync(outFd, mdatLength, 0, 4, outOffset);
+
+      // Copy rest of the MDAT
       outOffset += copyRangeSync(inFd, outFd, e.offset + 4, e.length - 4, outOffset);
+
+      const duration = (performance.now() - startTime) / 1000;
+      const bytesPerSecond = e.length / duration;
+      process.stdout.write(`${(new Array(logString.length - 12)).join('\b')}Copied MDAT #${i+1}: ${prettyBytes(e.length)} @ ${prettyBytes(bytesPerSecond, '/s')}\n`);
     });
   });
 
@@ -181,7 +194,7 @@ time('Completed reconstructing mp4 moov', () => {
 
   const tracks = constructTracks(videoTrack, audioTrack, chunksDurationsSplit);
 
-  time('Generating moov', () => {
+  time('Generating MOOV', () => {
     const moov = mp4Generator.moov(tracks);
     debug(moov, 'out_moov.bin', true);
     // Write MOOV
