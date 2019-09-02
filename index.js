@@ -57,6 +57,13 @@ if (program.args[1]) {
 
 const debug = (obj, name = 'out.json', raw = false) => program.debug && fs.writeFileSync(name, raw ? obj : JSON.stringify(obj, null, '  '));
 
+const time = (str, fn) => {
+  console.time(str);
+  const retVal = fn();
+  console.timeEnd(str);
+  return retVal;
+};
+
 // Scan file, gathering MDAT and sample info
 // Build chunk-lists from samples
 // Construct an moov
@@ -67,22 +74,29 @@ const debug = (obj, name = 'out.json', raw = false) => program.debug && fs.write
 // Append the new MOOV
 
 const constructChunkList = (inFd, useHEAAC) => {
-  console.time('Mdat mapping');
-  const [mdatMap, mdatLocations, videoTrack, audioTrack] = mdatMapper(inFd, useHEAAC);
-  console.timeEnd('Mdat mapping');
+  const [mdatMap, mdatLocations, videoTrack, audioTrack] = time('Mdat mapping', () => mdatMapper(inFd, useHEAAC));
+
   console.log('Total of', mdatLocations.length, 'mdats found.');
   console.log('Mdat start(s) and end(s):', mdatLocations.map(e => [e.offset, e.offset + e.length]));
 
-  console.time('Building samples');
-  const samples = mdatMapToSamples(mdatMap);
-  console.timeEnd('Building samples');
+  const samples = time('Building samples', () => mdatMapToSamples(mdatMap));
   console.log('Samples found:', samples.length);
 
-  console.time('Building chunks');
-  const chunks = samplesToChunks(samples);
-  const chunksDurations = spreadAudioDurationToVideo(chunks);
-  const chunksDurationsSplit = splitChunks(chunksDurations);
-  console.timeEnd('Building chunks');
+  const [
+    chunks,
+    chunksDurations,
+    chunksDurationsSplit,
+  ] = time('Building chunks', () => {
+    const chunks = samplesToChunks(samples);
+    const chunksDurations = spreadAudioDurationToVideo(chunks);
+    const chunksDurationsSplit = splitChunks(chunksDurations);
+
+    return [
+      chunks,
+      chunksDurations,
+      chunksDurationsSplit
+    ];
+  });
 
   debug(mdatMap);
   debug(samples, 'out_samples.json');
@@ -93,36 +107,37 @@ const constructChunkList = (inFd, useHEAAC) => {
 };
 
 const constructTracks = (videoTrack, audioTrack, chunksDurationsSplit) => {
-  console.time('Building sample table data');
-  //Start constructing actual stbl sub-box data
-  videoTrack.STTS = chunksToSTTS(chunksDurationsSplit.video);
-  audioTrack.STTS = chunksToSTTS(chunksDurationsSplit.audio);
+  time('Building sample table data', () => {
+    //Start constructing actual stbl sub-box data
+    videoTrack.STTS = chunksToSTTS(chunksDurationsSplit.video);
+    audioTrack.STTS = chunksToSTTS(chunksDurationsSplit.audio);
 
-  videoTrack.STSC = chunksToSTSC(chunksDurationsSplit.video);
-  audioTrack.STSC = chunksToSTSC(chunksDurationsSplit.audio);
+    videoTrack.STSC = chunksToSTSC(chunksDurationsSplit.video);
+    audioTrack.STSC = chunksToSTSC(chunksDurationsSplit.audio);
 
-  videoTrack.STSZ = chunksToSTSZ(chunksDurationsSplit.video);
-  audioTrack.STSZ = chunksToSTSZ(chunksDurationsSplit.audio);
+    videoTrack.STSZ = chunksToSTSZ(chunksDurationsSplit.video);
+    audioTrack.STSZ = chunksToSTSZ(chunksDurationsSplit.audio);
 
-  const maxVideoOffset = maxChunkOffset(chunksDurationsSplit.video);
-  const maxAudioOffset = maxChunkOffset(chunksDurationsSplit.audio);
+    const maxVideoOffset = maxChunkOffset(chunksDurationsSplit.video);
+    const maxAudioOffset = maxChunkOffset(chunksDurationsSplit.audio);
 
-  if (maxVideoOffset >= 2**32) {
-    console.log('Using 64-bit chunk offsets for video');
-    videoTrack.CO64 = chunksToSTCO(chunksDurationsSplit.video);
-  } else {
-    videoTrack.STCO = chunksToSTCO(chunksDurationsSplit.video);
-  }
+    if (maxVideoOffset >= 2**32) {
+      console.log('Using 64-bit chunk offsets for video');
+      videoTrack.CO64 = chunksToSTCO(chunksDurationsSplit.video);
+    } else {
+      videoTrack.STCO = chunksToSTCO(chunksDurationsSplit.video);
+    }
 
-  if (maxAudioOffset >= 2**32) {
-    console.log('Using 64-bit chunk offsets for audio');
-    audioTrack.CO64 = chunksToSTCO(chunksDurationsSplit.audio);
-  } else {
-    audioTrack.STCO = chunksToSTCO(chunksDurationsSplit.audio);
-  }
+    if (maxAudioOffset >= 2**32) {
+      console.log('Using 64-bit chunk offsets for audio');
+      audioTrack.CO64 = chunksToSTCO(chunksDurationsSplit.audio);
+    } else {
+      audioTrack.STCO = chunksToSTCO(chunksDurationsSplit.audio);
+    }
 
-  videoTrack.STSS = chunksToSTSS(chunksDurationsSplit.video);
-  console.timeEnd('Building sample table data');
+    videoTrack.STSS = chunksToSTSS(chunksDurationsSplit.video);
+  });
+
 
   videoTrack.duration = chunksToDuration(chunksDurationsSplit.video);
   audioTrack.duration = chunksToDuration(chunksDurationsSplit.audio);
@@ -133,52 +148,43 @@ const constructTracks = (videoTrack, audioTrack, chunksDurationsSplit) => {
   return [videoTrack, audioTrack];
 };
 
-console.time('Completed reconstructing mp4 moov');
+time('Completed reconstructing mp4 moov', () => {
+  // Open file for writing...
+  const outFd = fs.openSync(outFilename, 'w');
 
-// Open file for writing...
-const outFd = fs.openSync(outFilename, 'w');
+  const [videoTrack, audioTrack, chunksDurationsSplit, mdatLocations] = constructChunkList(inFd, program.heAac);
 
-const [videoTrack, audioTrack, chunksDurationsSplit, mdatLocations] = constructChunkList(inFd, program.heAac);
+  const ftyp = time('Generating ftyp', () => mp4Generator.ftyp());
 
-console.time('Generating ftyp');
-const ftyp = mp4Generator.ftyp();
-console.timeEnd('Generating ftyp');
+  debug(ftyp, 'out_ftyp.bin', true);
 
-debug(ftyp, 'out_ftyp.bin', true);
+  let outOffset = 0;
+  time('Copying Mdat(s)', () => {
+    // Write FTYP
+    outOffset += fs.writeSync(outFd, ftyp, 0, ftyp.length, outOffset);
 
-console.time('Copying Mdat(s)');
+    // Copy each MDAT
+    mdatLocations.forEach(e => {
+      const mdatLength = Buffer.alloc(4);
+      mdatLength.writeUInt32BE(e.length, 0);
+      e.newOffset = outOffset;
+      outOffset += fs.writeSync(outFd, mdatLength, 0, 4, outOffset);
+      outOffset += copyRangeSync(inFd, outFd, e.offset + 4, e.length - 4, outOffset);
+    });
+  });
 
-let outOffset = 0;
+  // Move all chunks and samples based on the new mdat locations
+  const mdatOffsetShift = mdatLocations.map(e => e.newOffset - e.offset);
 
-// Write FTYP
-outOffset += fs.writeSync(outFd, ftyp, 0, ftyp.length, outOffset);
+  shiftChunkOffsets(mdatOffsetShift, chunksDurationsSplit.video);
+  shiftChunkOffsets(mdatOffsetShift, chunksDurationsSplit.audio);
 
-// Copy each MDAT
-mdatLocations.forEach(e => {
-  const mdatLength = Buffer.alloc(4);
-  mdatLength.writeUInt32BE(e.length, 0);
-  e.newOffset = outOffset;
-  outOffset += fs.writeSync(outFd, mdatLength, 0, 4, outOffset);
-  outOffset += copyRangeSync(inFd, outFd, e.offset + 4, e.length - 4, outOffset);
+  const tracks = constructTracks(videoTrack, audioTrack, chunksDurationsSplit);
+
+  time('Generating moov', () => {
+    const moov = mp4Generator.moov(tracks);
+    debug(moov, 'out_moov.bin', true);
+    // Write MOOV
+    outOffset += fs.writeSync(outFd, moov, 0, moov.length, outOffset);
+  });
 });
-
-console.timeEnd('Copying Mdat(s)');
-
-// Move all chunks and samples based on the new mdat locations
-const mdatOffsetShift = mdatLocations.map(e => e.newOffset - e.offset);
-
-shiftChunkOffsets(mdatOffsetShift, chunksDurationsSplit.video);
-shiftChunkOffsets(mdatOffsetShift, chunksDurationsSplit.audio);
-
-const tracks = constructTracks(videoTrack, audioTrack, chunksDurationsSplit);
-
-console.time('Generating moov');
-const moov = mp4Generator.moov(tracks);
-
-debug(moov, 'out_moov.bin', true);
-
-// Write MOOV
-outOffset += fs.writeSync(outFd, moov, 0, moov.length, outOffset);
-console.timeEnd('Generating moov');
-
-console.timeEnd('Completed reconstructing mp4 moov');
