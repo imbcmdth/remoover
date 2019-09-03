@@ -1,6 +1,6 @@
 {
   "name": "remoover",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Attempt to fix certain types of corruption in MP4 - namely bad or missing MOOVs",
   "main": "index.js",
   "bin": "index.js",
