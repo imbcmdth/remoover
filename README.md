@@ -1,8 +1,37 @@
 # REMOOVER
 
-A tool to (poorly) attempt to fix corrupted/missing MOOV atoms in MP4 files!
+A tool to (poorly) attempt to fix partially downloaded live streams (\*.mp4.part files) created by popular browser-based downloader tools.
 
-## So what does this do?
+## Instructions
+
+Download and unzip the standalone executable for your platform (Windows and Mac OS/X are suppored) from https://github.com/imbcmdth/remoover/releases/latest
+**OR**
+Build it from source by cloning this repo... *it's up to you!*
+
+Then on the command line run: 
+```sh
+remoover <path to file>\"My Broken File.mp4.part"
+```
+
+This will generate a (hopefully) working file named `<path to file>\My Broken File.fixed.mp4`. It's that easy!
+
+There is one important thing: If the output file seems like it is running in slow motion OR the audio is very choppy (or both) then try running it with the `-a` option:
+
+```sh
+remoover -a <path to file>\"My Broken File.mp4.part"
+```
+
+That uses a different time calculation for audio and it usually applies only to higher quality video streams (ie. HD).
+
+One last thing you can passing in an output file name too:
+
+```sh
+remoover <path to file>\"My Broken File.mp4.part" "all good.mp4"
+```
+
+To output the fixed videdo to `all good.mp4`.
+
+## So what does this do? (Geek stuff below)
 
 This tool scans one or more MDAT(s) present in the MP4 and attempts to generate a "map" of all samples (currently only *AVCC formatted H.264* and *AAC within ADTS* are supported). With that "map" in hand, the tool then attempts to construct a valid MOOV (ignoring the existing MOOV, if present). Finally, the tool constructs a new, hopefully valid MP4, by copying **only** the MDAT(s) data into a new file and appends the new MOOV.
 
@@ -36,7 +65,15 @@ As for limitations, the most important one is the format limitation mentioned ab
 ```
 Copyright (c) 2019, Jon-Carlos Rivera
 
-Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
 ```
