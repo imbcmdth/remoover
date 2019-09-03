@@ -5,7 +5,9 @@ A tool to (poorly) attempt to fix partially downloaded live streams (\*.mp4.part
 ## Instructions
 
 Download and unzip the standalone executable for your platform (Windows and Mac OS/X are suppored) from https://github.com/imbcmdth/remoover/releases/latest
+
 **OR**
+
 Build it from source by cloning this repo... *it's up to you!*
 
 Then on the command line run: 
