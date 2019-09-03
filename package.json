@@ -5,7 +5,11 @@
   "main": "index.js",
   "bin": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm-run-all build:*",
+    "build:osx": "pkg -t node12-macos-x64 -o dist/osx/x64/remoover .",
+    "build:elf": "pkg -t node12-linux-x64 -o dist/linux/x64/remoover .",
+    "build:win64": "pkg -t node12-windows-x64 -o dist/windows/x64/remoover.exe ."
   },
   "author": "Jon-Carlos Rivera",
   "license": "ISC",
