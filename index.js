@@ -25,6 +25,8 @@ const {
   prettyInt,
   prettyFloat,
   prettyBytes,
+  stringLen,
+  backspace,
 } = require('./lib/formatting-tools.js');
 
 const package = require('./package.json');
@@ -182,7 +184,7 @@ time('\nTotal time to reconstruct MP4', () => {
 
       const duration = (performance.now() - startTime) / 1000;
       const bytesPerSecond = e.length / duration;
-      process.stdout.write(`${(new Array(logString.length - 12)).join('\b')}Copied MDAT #${i+1}: ${prettyBytes(e.length)} @ ${prettyBytes(bytesPerSecond, '/s')}\n`);
+      process.stdout.write(backspace(stringLen(logString)) + `Copied MDAT #${i+1}: ${prettyBytes(e.length)} @ ${prettyBytes(bytesPerSecond, '/s')}\n`);
     });
   });
 
@@ -200,4 +202,7 @@ time('\nTotal time to reconstruct MP4', () => {
     // Write MOOV
     outOffset += fs.writeSync(outFd, moov, 0, moov.length, outOffset);
   });
+  fs.closeSync(outFd);
 });
+
+fs.closeSync(inFd);
