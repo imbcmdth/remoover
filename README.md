@@ -1,6 +1,8 @@
 # REMOOVER
 
-A tool to (poorly) attempt to fix partially downloaded live streams (\*.mp4.part files) created by popular browser-based downloader tools.
+A tool to (poorly) attempt to fix partially downloaded **live streams** (\*.mp4.part files) created by popular browser-based downloader extensions. This may not work for all aborted or corrupted live streams left in a "partial" downloaded state.
+
+If you find a file that is not recovered correctly, you can [start an issue](https://github.com/imbcmdth/remoover/issues/new) with a sample file.
 
 ## Getting Remoover
 
@@ -64,6 +66,12 @@ As for limitations, the most important one is the format limitation mentioned ab
 **BITSTREAM** - The stream of data produced by a CODEC.
 
 **CODEC** - A tool to make media smaller using magic.
+
+## What's with the name?
+
+The main problem that these files have is that they lack the MOOV box or atom. This means the MP4 is basically unusable as-is. What this tool does is attempt to recover the MOOV by parsing the audio and video data directly.
+
+In the end, that the tool is doing is create a MOOV for a file that has none or that has a bad MOOV. Therefore, it "re-MOOVs" the file.
 
 ## License
 ```
